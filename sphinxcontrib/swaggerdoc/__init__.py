@@ -6,3 +6,4 @@ def setup(app):
     app.add_directive('swaggerdoc', SwaggerDocDirective)
     app.add_directive('swaggerv2doc', SwaggerV2DocDirective)
 
+    return {'version': '0.1.4'}
