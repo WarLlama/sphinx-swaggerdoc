@@ -10,7 +10,7 @@ def setup(app):
     Returns:
           Metadata dictionary
     """
-    app.setup_extension('sphinx-httpdomain')
+    app.setup_extension('sphinxcontrib.httpdomain')
 
     app.add_directive('swaggerdoc', SwaggerDocDirective)
     app.add_directive('swaggerv2doc', SwaggerV2DocDirective)

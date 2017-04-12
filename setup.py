@@ -31,5 +31,5 @@ setup(
         'Topic :: Utilities'
     ],
     packages=find_packages(),
-    install_requires=['sphinx', 'requests', 'requests-file', 'future']
+    install_requires=['sphinx', 'requests', 'requests-file', 'future', 'sphinxcontrib-httpdomain']
 )
