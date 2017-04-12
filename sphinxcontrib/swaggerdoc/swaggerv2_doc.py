@@ -199,6 +199,8 @@ class SwaggerV2DocDirective(Directive):
                     section = self.create_section(tag_name)
 
                     for path, method_type, method in methods:
+                        if method_type in ['$ref', 'parameters']:
+                            continue
                         section += self.make_method(path, method_type, method)
 
                     entries.append(section)
