@@ -12,14 +12,6 @@ import requests
 from requests_file import FileAdapter
 import json
 
-class swaggerv2doc(nodes.Admonition, nodes.Element):
-    pass
-
-def visit_swaggerv2doc_node(self, node):
-    self.visit_admonition(node)
-
-def depart_swaggerv2doc_node(self, node):
-    self.depart_admonition(node)
 
 class SwaggerV2DocDirective(Directive):
 
@@ -120,7 +112,7 @@ class SwaggerV2DocDirective(Directive):
         return entries
 
     def make_method(self, path, method_type, method):
-        swagger_node = swaggerv2doc(path)
+        swagger_node = nodes.admonition(path)
         swagger_node += nodes.title(path, method_type.upper() + ' ' + path)
 
         paragraph = nodes.paragraph()

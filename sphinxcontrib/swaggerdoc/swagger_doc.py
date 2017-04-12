@@ -8,14 +8,6 @@ from sphinx.locale import _
 import requests
 import json
 
-class swaggerdoc(nodes.Admonition, nodes.Element):
-    pass
-
-def visit_swaggerdoc_node(self, node):
-    self.visit_admonition(node)
-
-def depart_swaggerdoc_node(self, node):
-    self.depart_admonition(node)
 
 class SwaggerDocDirective(Directive):
 
@@ -45,7 +37,7 @@ class SwaggerDocDirective(Directive):
         return expanded_values
 
     def make_operation(self, path, operation):
-        swagger_node = swaggerdoc(path)
+        swagger_node = nodes.admonition(path)
         swagger_node += nodes.title(path, operation['method'].upper() + ' ' + path)
 
         content = nodes.paragraph()
