@@ -69,6 +69,15 @@ class SwaggerDocDirective(Directive):
         
         return field
 
+    def parameters(self, parameters):
+        """Yield parameter information as field lists"""
+        fl = nodes.field_list()
+        
+        for parameter in parameters:
+            fl += self._field_list_item(parameter['name'], parameter['description'])
+
+        yield fl
+
     def operations(self, operations, path):
         """Create nodes for an Operation object which typically represents a single HTTP VERB request to one endpoint.
         
@@ -90,6 +99,15 @@ class SwaggerDocDirective(Directive):
             yield nodes.subtitle(text='{} {}'.format(method, path))
             if 'summary' in operation:
                 yield nodes.paragraph(text=operation['summary'])
+
+            if 'notes' in operation:
+                opnote = nodes.note()
+                opnote += nodes.paragraph(text=operation['notes'])
+                yield opnote
+
+            if 'parameters' in operation:
+                for parameter in self.parameters(operation['parameters']):
+                    yield parameter
 
     def api_endpoints(self, api_objects):
         """Create nodes for api_objects as a generator.
