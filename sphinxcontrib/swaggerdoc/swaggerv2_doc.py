@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+#1 -*- coding: utf-8 -*-
 from docutils import nodes
 import traceback
 
@@ -19,6 +19,8 @@ class SwaggerV2DocDirective(Directive):
 
     # this enables content in the directive
     has_content = True
+
+    api_desc = []
 
     def processSwaggerURL(self, url):
         parsed_url = urlparse.urlparse(url)
@@ -94,10 +96,22 @@ class SwaggerV2DocDirective(Directive):
         body = []
         for param in parameters:
             row = []
-            row.append(param.get('name', ''))
+            req = param.get('required', False)
+            if req:
+                row.append(param.get('name', '')+'*')
+            else:
+                row.append(param.get('name', ''))
             row.append(param.get('in', ''))
             row.append(param.get('description', ''))
-            row.append(param.get('type', ''))
+            t = param.get('type')
+            if t is not None:
+                row.append(t)
+            else:
+                s = param.get('schema')
+                if s is not None:
+                    row.append(self.make_schema(s))
+                else:
+                    row.append('')
 
             body.append(row)
 
@@ -105,6 +119,49 @@ class SwaggerV2DocDirective(Directive):
 
         paragraph = nodes.paragraph()
         paragraph += nodes.strong('', 'Parameters')
+
+        entries.append(paragraph)
+        entries.append(table)
+
+        return entries
+
+    def make_schema(self, schema):
+        ref = schema.get('$ref')
+        if ref is not None:
+            if ref.startswith('#/responses/'):
+                nref = ref.replace('#/responses/', '')
+            if ref.startswith('#/definitions/'):
+                nref = ref.replace('#/definitions/', '')
+            if nref is None:
+                core = nodes.Text("HELPME")
+            else:
+                core = nodes.paragraph('')
+                core += nodes.reference('', '', nodes.Text(nref), postpone=True, internal=True, refid=nref)
+        else:
+            core = nodes.Text("HELPME2")
+
+        return core
+
+    def make_responses(self, responses):
+        entries = []
+
+        head = ['Code', 'Type']
+        body = []
+        for code, resp in responses.items():
+            row = []
+
+            row.append(code)
+            row.append(self.make_schema(resp))
+
+            body.append(row)
+
+        if len(body) == 0:
+            return []
+
+        table = self.create_table(head, body)
+
+        paragraph = nodes.paragraph()
+        paragraph += nodes.strong('', 'Responses')
 
         entries.append(paragraph)
         entries.append(table)
@@ -135,19 +192,23 @@ class SwaggerV2DocDirective(Directive):
         if parameters is not None:
             swagger_node += self.make_parameters(parameters)
 
+        responses = method.get('responses')
+        if responses is not None:
+            swagger_node += self.make_responses(responses)
+
         return [swagger_node]
 
-    def group_tags(self, api_desc):
+    def group_tags(self):
         groups = {}
 
-        if 'tags' in api_desc:
-            for tag in api_desc['tags']:
+        if 'tags' in self.api_desc:
+            for tag in self.api_desc['tags']:
                 groups[tag['name']] = []
 
         if len(groups) == 0:
             groups[SwaggerV2DocDirective.DEFAULT_GROUP] = []
 
-        for path, methods in api_desc['paths'].items():
+        for path, methods in self.api_desc['paths'].items():
             for method_type, method in methods.items():
                 if SwaggerV2DocDirective.DEFAULT_GROUP in groups:
                     groups[SwaggerV2DocDirective.DEFAULT_GROUP].append((path, method_type, method))
@@ -168,6 +229,11 @@ class SwaggerV2DocDirective(Directive):
             msg = self.reporter.error("Error. Tag '%s' not found in Swagger URL %s." % (invalid_tags[0], api_url))
             return [msg]
 
+    def make_schema_object(self, name, obj):
+        section = self.create_section(name)
+        section += self.make_schema(obj)
+        return section
+
     def run(self):
         self.reporter = self.state.document.reporter
 
@@ -179,13 +245,15 @@ class SwaggerV2DocDirective(Directive):
             selected_tags = []
 
         try:
-            api_desc = self.processSwaggerURL(api_url)
+            self.api_desc = self.processSwaggerURL(api_url)
 
-            groups = self.group_tags(api_desc)
+            groups = self.group_tags()
 
             self.check_tags(selected_tags, groups.keys(), api_url)
 
             entries = []
+
+            method_section = self.create_section('Methods')
             for tag_name, methods in groups.items():
                 if tag_name in selected_tags or len(selected_tags) == 0:
                     section = self.create_section(tag_name)
@@ -195,7 +263,18 @@ class SwaggerV2DocDirective(Directive):
                             continue
                         section += self.make_method(path, method_type, method)
 
-                    entries.append(section)
+                    method_section.append(section)
+            entries.append(method_section)
+
+            responses_section = self.create_section('Responses')
+            for resp_name, response in self.api_desc.get('responses').items():
+                responses_section.append(self.make_schema_object(resp_name, response))
+            entries.append(responses_section)
+
+            defs_section = self.create_section('Definitions')
+            for def_name, def_obj in self.api_desc.get('definitions').items():
+                defs_section.append(self.make_schema_object(def_name, def_obj))
+            entries.append(defs_section)
 
             return entries
         except Exception as e:
