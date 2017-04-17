@@ -133,7 +133,7 @@ class SwaggerV2DocDirective(Directive):
             if ref.startswith('#/definitions/'):
                 nref = ref.replace('#/definitions/', '')
             if nref is None:
-                core = nodes.Text("HELPME")
+                core = nodes.Text("THIS_IS_NOT_RIGHT")
             else:
                 core = nodes.paragraph('')
                 core += nodes.reference('', '', nodes.Text(nref), postpone=True, internal=True, refid=nref)
