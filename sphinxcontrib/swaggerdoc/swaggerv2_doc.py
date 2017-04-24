@@ -91,7 +91,6 @@ class SwaggerV2DocDirective(Directive):
 
     def make_parameters(self, parameters):
         entries = []
-
         head = ['Name', 'Position', 'Description', 'Type']
         body = []
         for param in parameters:
@@ -109,23 +108,79 @@ class SwaggerV2DocDirective(Directive):
             else:
                 s = param.get('schema')
                 if s is not None:
-                    row.append(self.make_schema(s))
+                    row.append(self.make_schema('', s))
                 else:
                     row.append('')
 
             body.append(row)
-
         table = self.create_table(head, body)
-
         paragraph = nodes.paragraph()
         paragraph += nodes.strong('', 'Parameters')
-
         entries.append(paragraph)
         entries.append(table)
-
         return entries
 
-    def make_schema(self, schema):
+    def make_properties(self, properties, required):
+        entries = []
+        head = ['Name', 'Description', 'Type']
+        body = []
+        for name, prop in properties.items():
+            row = []
+            if name in required:
+                row.append(name+'*')
+            else:
+                row.append(name)
+            row.append(prop.get('description', ''))
+            row.append(self.make_object('', prop))
+            body.append(row)
+        table = self.create_table(head, body)
+        paragraph = nodes.paragraph()
+        paragraph += nodes.strong('', 'Fields')
+        entries.append(paragraph)
+        entries.append(table)
+        return entries
+
+    # Helper function - should really only be called from inside make_schema
+    def make_object(self, name, schema):
+        ref = schema.get('$ref')
+        if ref is not None:
+            if ref.startswith('#/responses/'):
+                nref = ref.replace('#/responses/', '')
+            if ref.startswith('#/definitions/'):
+                nref = ref.replace('#/definitions/', '')
+            if nref is None:
+                swagger_node = nodes.Text("THIS_IS_NOT_RIGHT")
+            else:
+                swagger_node = nodes.paragraph('')
+                swagger_node += nodes.reference('', '', nodes.Text(name + nref), postpone=True, internal=True, refid=nref)
+        else:
+            type = schema.get('type')
+            if type in ['boolean', 'string', 'integer']:
+                swagger_node = nodes.Text(name + type)
+            elif type == 'array':
+                items = schema.get('items')
+                if items is not None:
+                    swagger_node = self.make_schema(name + 'array of ', items)
+                else:
+                    swagger_node = nodes.Text("array of UNKNOWN type")
+            elif type == 'object':
+                props = schema.get('properties')
+                if props is not None:
+                    swagger_node = self.make_properties(schema.get('properties', {}), schema.get('required', []))
+                else:
+                    props = schema.get('additionalProperties')
+                    if props is not None:
+                        swagger_node = nodes.Text(name + " map of strings to " + props.get("type", "Unknown"))
+                    else:
+                        swagger_node = nodes.Text(name + "Raw Octet Stream")
+            elif type is None:
+                swagger_node = nodes.Text(name + "No Data Returned")
+            else:
+                swagger_node = nodes.Text(name + "UNKNOWN type (3) - " + str(schema))
+
+        return swagger_node
+
+    def make_schema(self, name, schema):
         ref = schema.get('$ref')
         if ref is not None:
             if ref.startswith('#/responses/'):
@@ -136,13 +191,14 @@ class SwaggerV2DocDirective(Directive):
                 core = nodes.Text("THIS_IS_NOT_RIGHT")
             else:
                 core = nodes.paragraph('')
-                core += nodes.reference('', '', nodes.Text(nref), postpone=True, internal=True, refid=nref)
+                core += nodes.reference('', '', nodes.Text(name + nref), postpone=True, internal=True, refid=nref)
         else:
-            core = nodes.Text("HELPME2")
+            core = nodes.paragraph('Fields')
+            core += self.make_object(name, schema)
 
         return core
 
-    def make_responses(self, responses):
+    def make_method_responses(self, responses):
         entries = []
 
         head = ['Code', 'Type']
@@ -151,7 +207,7 @@ class SwaggerV2DocDirective(Directive):
             row = []
 
             row.append(code)
-            row.append(self.make_schema(resp))
+            row.append(self.make_schema('', resp))
 
             body.append(row)
 
@@ -167,6 +223,70 @@ class SwaggerV2DocDirective(Directive):
         entries.append(table)
 
         return entries
+
+    def make_response(self, name, obj):
+        schema = obj.get('schema')
+        desc = obj.get('description')
+        if schema is not None:
+            if desc is not None:
+                schema['description'] = desc
+        else:
+            schema = {}
+            if desc is not None:
+               schema['description'] = desc
+        obj = schema
+
+        section = self.create_section(name)
+
+        swagger_node = nodes.admonition(name)
+        swagger_node += nodes.title(name, name)
+
+        paragraph = nodes.paragraph()
+        paragraph += nodes.Text(obj.get('summary', ''))
+
+        bullet_list = nodes.bullet_list()
+        method_sections = {'Description': 'description', 'Consumes': 'consumes', 'Produces': 'produces'}
+        for title in method_sections:
+            value_name = method_sections[title]
+            value = obj.get(value_name)
+            if value is not None:
+                bullet_list += self.create_item(title + ': \n', value)
+        paragraph += bullet_list
+        swagger_node += paragraph
+        
+        param = {}
+        param['in'] = 'Body'
+        param['schema'] = schema
+        param['name'] = 'Payload'
+        params = [param]
+        swagger_node += self.make_parameters(params)
+
+        section += swagger_node
+        return section
+
+    def make_definition(self, name, obj):
+        section = self.create_section(name)
+
+        swagger_node = nodes.admonition(name)
+        swagger_node += nodes.title(name, name)
+
+        paragraph = nodes.paragraph()
+        paragraph += nodes.Text(obj.get('summary', ''))
+
+        bullet_list = nodes.bullet_list()
+        method_sections = {'Description': 'description', 'Consumes': 'consumes', 'Produces': 'produces'}
+        for title in method_sections:
+            value_name = method_sections[title]
+            value = obj.get(value_name)
+            if value is not None:
+                bullet_list += self.create_item(title + ': \n', value)
+        paragraph += bullet_list
+        swagger_node += paragraph
+
+        swagger_node += self.make_schema('', obj)
+
+        section += swagger_node
+        return section
 
     def make_method(self, path, method_type, method):
         swagger_node = nodes.admonition(path)
@@ -194,7 +314,7 @@ class SwaggerV2DocDirective(Directive):
 
         responses = method.get('responses')
         if responses is not None:
-            swagger_node += self.make_responses(responses)
+            swagger_node += self.make_method_responses(responses)
 
         return [swagger_node]
 
@@ -228,11 +348,6 @@ class SwaggerV2DocDirective(Directive):
         if len(invalid_tags) > 0:
             msg = self.reporter.error("Error. Tag '%s' not found in Swagger URL %s." % (invalid_tags[0], api_url))
             return [msg]
-
-    def make_schema_object(self, name, obj):
-        section = self.create_section(name)
-        section += self.make_schema(obj)
-        return section
 
     def run(self):
         self.reporter = self.state.document.reporter
@@ -268,12 +383,12 @@ class SwaggerV2DocDirective(Directive):
 
             responses_section = self.create_section('Responses')
             for resp_name, response in self.api_desc.get('responses').items():
-                responses_section.append(self.make_schema_object(resp_name, response))
+                responses_section.append(self.make_response(resp_name, response))
             entries.append(responses_section)
 
             defs_section = self.create_section('Definitions')
             for def_name, def_obj in self.api_desc.get('definitions').items():
-                defs_section.append(self.make_schema_object(def_name, def_obj))
+                defs_section.append(self.make_definition(def_name, def_obj))
             entries.append(defs_section)
 
             return entries
