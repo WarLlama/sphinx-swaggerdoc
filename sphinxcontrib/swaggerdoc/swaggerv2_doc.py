@@ -26,11 +26,12 @@ class SwaggerV2DocDirective(Directive):
     def load_swagger(self, content):
         try:
             return json.loads(content)
-        except JSONDecodeError:
-            return yaml.loads(content)
+        except Exception:
+            return yaml.load(content)
 
     def processSwaggerURL(self, url):
         parsed_url = urlparse.urlparse(url)
+	print parsed_url
         if not parsed_url.scheme:  # Assume file relative to documentation
             env = self.state.document.settings.env
             relfn, absfn = env.relfn2path(url)
@@ -38,12 +39,14 @@ class SwaggerV2DocDirective(Directive):
 
             with open(absfn) as fd:
                 content = fd.read()
-            return load_swagger(content)
+            return self.load_swagger(content)
         else:
+            print url
             s = requests.Session()
             s.mount('file://', FileAdapter())
             r = s.get(url)
-            return load_swagger(r.text)
+	    print r.text
+            return self.load_swagger(r.text)
 
     def create_item(self, key, value):
         para = nodes.paragraph()
@@ -367,7 +370,6 @@ class SwaggerV2DocDirective(Directive):
 
         try:
             self.api_desc = self.processSwaggerURL(api_url)
-
             groups = self.group_tags()
 
             self.check_tags(selected_tags, groups.keys(), api_url)
@@ -388,12 +390,12 @@ class SwaggerV2DocDirective(Directive):
             entries.append(method_section)
 
             responses_section = self.create_section('Responses')
-            for resp_name, response in self.api_desc.get('responses').items():
+            for resp_name, response in self.api_desc.get('responses', {}).items():
                 responses_section.append(self.make_response(resp_name, response))
             entries.append(responses_section)
 
             defs_section = self.create_section('Definitions')
-            for def_name, def_obj in self.api_desc.get('definitions').items():
+            for def_name, def_obj in self.api_desc.get('definitions', {}).items():
                 defs_section.append(self.make_definition(def_name, def_obj))
             entries.append(defs_section)
 
