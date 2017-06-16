@@ -12,7 +12,7 @@ import requests
 from requests_file import FileAdapter
 import json
 import yaml
-
+from prance import ResolvingParser
 
 class SwaggerV2DocDirective(Directive):
 
@@ -202,6 +202,7 @@ class SwaggerV2DocDirective(Directive):
                 core = nodes.paragraph('')
                 core += nodes.reference('', '', nodes.Text(name + nref), postpone=True, internal=True, refid=nref)
         else:
+	    print json.dumps(schema, indent=2)
             core = nodes.paragraph('Fields')
             core += self.make_object(name, schema)
 
@@ -369,7 +370,8 @@ class SwaggerV2DocDirective(Directive):
             selected_tags = []
 
         try:
-            self.api_desc = self.processSwaggerURL(api_url)
+            parser = ResolvingParser(api_url)
+            self.api_desc = parser.specification
             groups = self.group_tags()
 
             self.check_tags(selected_tags, groups.keys(), api_url)
@@ -398,7 +400,8 @@ class SwaggerV2DocDirective(Directive):
             for def_name, def_obj in self.api_desc.get('definitions', {}).items():
                 defs_section.append(self.make_definition(def_name, def_obj))
             entries.append(defs_section)
-
+            from pprint import pprint
+	    pprint(entries)
             return entries
         except Exception as e:
             error_message = 'Unable to process URL: %s' % api_url
