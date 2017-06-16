@@ -24,10 +24,10 @@ class SwaggerV2DocDirective(Directive):
     api_desc = []
 
     def load_swagger(self, content):
-	try:
-	    return json.loads(content)
-	except JSONDecodeError:
-	    return yaml.loads(content)
+        try:
+            return json.loads(content)
+        except JSONDecodeError:
+            return yaml.loads(content)
 
     def processSwaggerURL(self, url):
         parsed_url = urlparse.urlparse(url)
