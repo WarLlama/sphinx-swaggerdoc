@@ -43,7 +43,6 @@ class SwaggerV2DocDirective(Directive):
             s = requests.Session()
             s.mount('file://', FileAdapter())
             r = s.get(url)
-	    try:
             return load_swagger(r.text)
 
     def create_item(self, key, value):
