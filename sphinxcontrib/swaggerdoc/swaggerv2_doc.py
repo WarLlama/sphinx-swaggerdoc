@@ -11,6 +11,7 @@ from six.moves.urllib import parse as urlparse   # Retain Py2 compatibility for 
 import requests
 from requests_file import FileAdapter
 import json
+import yaml
 
 
 class SwaggerV2DocDirective(Directive):
@@ -22,6 +23,12 @@ class SwaggerV2DocDirective(Directive):
 
     api_desc = []
 
+    def load_swagger(self, content):
+	try:
+	    return json.loads(content)
+	except JSONDecodeError:
+	    return yaml.loads(content)
+
     def processSwaggerURL(self, url):
         parsed_url = urlparse.urlparse(url)
         if not parsed_url.scheme:  # Assume file relative to documentation
@@ -31,13 +38,13 @@ class SwaggerV2DocDirective(Directive):
 
             with open(absfn) as fd:
                 content = fd.read()
-
-            return json.loads(content)
+            return load_swagger(content)
         else:
             s = requests.Session()
             s.mount('file://', FileAdapter())
             r = s.get(url)
-            return r.json()
+	    try:
+            return load_swagger(r.text)
 
     def create_item(self, key, value):
         para = nodes.paragraph()
